@@ -75,10 +75,10 @@
             if ($Offset -lt 0) {
                 1..(-$Offset) | ForEach-Object {
                     if($Byte -band 128) {
-                        $Byte = 1 + [Math]::Floor($Byte * [math]::Pow(2, 1)) -band 127
+                        $Byte = 1 + ([Math]::Floor($Byte * [math]::Pow(2, 1)) -band 254)
                     }
                     else {
-                        $Byte = [Math]::Floor($Byte * [math]::Pow(2, 1)) -band 127
+                        $Byte = [Math]::Floor($Byte * [math]::Pow(2, 1)) -band 254
                     }
                 }
             }
