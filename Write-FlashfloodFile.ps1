@@ -97,7 +97,7 @@
     }
 }
 
-function Read-FlashfloodData 
+function Read-FlashfloodFile
 {
     <#
         .SYNOPSIS
@@ -156,14 +156,14 @@ function Read-FlashfloodData
 
     }
     $DecompressedBytes = $OutputStream.ToArray()
-    "DecompressedBytes length: $($DecompressedBytes.Length)"
+    Write-Verbose "DecompressedBytes length: $($DecompressedBytes.Length)"
 
     #Write decompressed bytes
     Write-Output $DecompressedBytes
 
 }
 
-function Out-FlashfloodFile
+function Write-FlashfloodFile
 {
     <#
         .SYNOPSIS
