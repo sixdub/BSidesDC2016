@@ -219,17 +219,21 @@ Function Start-SkypeRecorder
                 
                 $skypeStatus = $($struct.Data)
                 $Script:SkypeMessage = "Msg from skype: $skypeStatus"
-                if ($skypeStatus -match "CALL \d+ STATUS INPROGRESS") {
+                if (($skypeStatus -match "CALL (\d+) STATUS INPROGRESS")) {
                     $Script:callID = $skypeStatus -replace '\D+(\d+)\D+','$1'
                     Start-Recording -callID $Script:callID
                 }
-                elseif ($skypeStatus -match "CALL \d+ PARTNER_DISPNAME ") { 
+                elseif (($skypeStatus -match "CALL (\d+) DURATION (\d+)") -and ($Script:recording -eq $false)) {
+                    $Script:callID = $skypeStatus.Split(' ')[1]
+                    Start-Recording -callID $Script:callID
+                }
+                elseif ($skypeStatus -match "CALL (\d+) PARTNER_DISPNAME ") { 
                     $Script:user = "$($skypeStatus.split(' ')[-2])-$($skypeStatus.split(' ')[-1])"
                 }
-                elseif ($skypeStatus -match "CALL \d+ STATUS FINISHED") {
+                elseif ($skypeStatus -match "CALL (\d+) STATUS FINISHED") {
                     $Script:recording = $False
                 }
-                elseif ($skypeStatus -match "ERROR \d+ ALTER CALL: unable to alter input/output") {
+                elseif ($skypeStatus -match "ERROR (\d+) ALTER CALL: unable to alter input/output") {
                     #if we are unable to record the call, Try again?
                     
                     if (($Script:recording -ne $True) -and ($Script:retry -lt $Script:MaxRetries))  {
