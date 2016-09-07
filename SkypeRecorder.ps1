@@ -58,11 +58,11 @@ Function Start-SkypeRecorder
     (
         [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [string]$WindowClassName,
+        [string]$WindowClassName = "SkypeClass",
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [string]$WindowMenuName,
+        [string]$WindowMenuName = "SkypeMenu",
 
         [Parameter(Mandatory = $True)]
         [ValidateNotNullOrEmpty()]
@@ -70,33 +70,17 @@ Function Start-SkypeRecorder
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [string]$OutDirectory,
+        [string]$OutDirectory = $env:APPDATA,
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [int]$MaxRetries,
+        [int]$MaxRetries = 1,
 
         [Switch]$ShowStatus
     )
 
-    if (-not $PSBoundParameters['WindowClassName']) {
-        $WindowClassName = "SkypeClass"
-    }
-
-    if (-not $PSBoundParameters['WindowMenuName']) {
-        $WindowMenuName = "SkypeMenu"
-    }
-
-    if (-not $PSBoundParameters['OutDirectory']){
-        $OutDirectory = $env:APPDATA
-    }
-
-    if (-not $PSBoundParameters['MaxRetries']) {
-        $Script:MaxRetries = 1
-    }
-    else {
-        $Script:MaxRetries = $MaxRetries
-    }
+    
+    $Script:MaxRetries = $MaxRetries
 
     #Window Procedure
     $CustomWndProc = {
@@ -117,8 +101,8 @@ Function Start-SkypeRecorder
                 [string]$callID
             )
             $Script:recording = $False
-            $speakerfilename = "speaker-$(Get-Date -Format o).wav"
-            $micfilename = "microphone-$(Get-Date -Format o).wav"
+            $speakerfilename = "$(Get-Date -Format o).wav"
+            $micfilename = "$(Get-Date -Format o).wav"
             $GetDispName = "GET CALL $callID PARTNER_DISPNAME"
             #Get the PARTNER_DISPNAME property of the CALL object
             $responseStruct = [Activator]::CreateInstance([Type]$CopyDataStructType)
@@ -161,12 +145,12 @@ Function Start-SkypeRecorder
             $result = [IntPtr]::Zero
             $Win32NativeMethods::SendMessageTimeout($hWinHandle, $WM_COPYDATA, $hWnd,$responsePtr, $SMTO_NORMAL, 100, [ref]$result) | Out-Null
             $Script:SkypeMessage = "Sent command: $SetMicrophoneOutput"
-
+            $null = [System.Runtime.InteropServices.Marshal]::FreeHGlobal($responsePtr)
         }
         $WM_COPYDATA = 74
-        
+        $Success = New-Object IntPtr 1
 
-        $SystemAssembly = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GlobalAssemblyCache -And $_.Location.Split('\\')[-1].Equals('System.dll')}
+        $SystemAssembly = [Uri].Assembly
         $Win32NativeMethods = $SystemAssembly.GetType('Microsoft.Win32.NativeMethods')
         $UnsafeNativeMethods = $SystemAssembly.GetType('Microsoft.Win32.UnsafeNativeMethods')
         $SafeWin32Methods = $SystemAssembly.GetType('Microsoft.Win32.SafeNativeMethods')
@@ -201,14 +185,14 @@ Function Start-SkypeRecorder
                 }
                 default {$retVal = $UnsafeNativeMethods::DefWindowProc($hWnd, $msg, $wParam, $lParam)}
             }
-            New-Object IntPtr 1
+            $Success
         }
         elseif ($msg -eq $Script:SkypeAPIDiscover) {
             $hWndOther = $wParam
             if ($hWndOther -ne $hWnd) {
                 $Script:SkypeMessage = "Detected other skype api client"
             }
-            New-Object IntPtr 1
+            Success
         }
         elseif ($msg -eq $WM_COPYDATA) {
             
@@ -249,12 +233,12 @@ Function Start-SkypeRecorder
             
             }
             
-            New-Object IntPtr 1
+            $Success
         }
         else {
             #Else just pass execution to the default window processor
             $retVal = $UnsafeNativeMethods::DefWindowProc($hWnd, $msg, $wParam, $lParam)
-            New-Object IntPtr 1
+            $Success
         }
     }
 
@@ -275,7 +259,7 @@ Function Start-SkypeRecorder
         if ($skype.GetType().Name -eq 'Process') {
             Write-Verbose "Building necessary types"
             #Load the PresentationFramework. Get a reference to the System and Windows.Forms assemblies for needed functions
-            $SystemAssembly = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GlobalAssemblyCache -And $_.Location.Split('\\')[-1].Equals('System.dll')}
+            $SystemAssembly = [Uri].Assembly
             $WindowsBase = [System.Reflection.Assembly]::LoadWithPartialName('WindowsBase')
             $UnsafeNativeMethods = $WindowsBase.GetType('MS.Win32.UnsafeNativeMethods')
             $Win32NativeMethods = $SystemAssembly.GetType('Microsoft.Win32.NativeMethods')
@@ -288,7 +272,9 @@ Function Start-SkypeRecorder
             $WNDCLASSExStruct = [Activator]::CreateInstance([Type]$WNDCLASSEXType)
 
             #Get some preliminary values for the WNDCLASSEX struct
-            $WindowStyle = [Int32]0x0002 -bor [Int32]0x0001
+            $HREDRAW = [Int32]0x0002
+            $VREDRAW = [Int32]0x0001
+            $WindowStyle = $HREDRAW -bor $VREDRAW
             $wndClassSize = [System.Runtime.InteropServices.Marshal]::sizeof($WNDCLASSExStruct)
             $hInstance = $UnsafeWin32Methods::GetModuleHandle($(Get-Process -Id $PID).MainModule.ModuleName)
 
@@ -356,8 +342,7 @@ Function Start-SkypeRecorder
                                                                         $hWndParent, 
                                                                         $hMenu, 
                                                                         $hInstance, 
-                                                                        $pvParam)
-            $LastError = [ComponentModel.Win32Exception][Runtime.InteropServices.Marshal]::GetLastWin32Error()
+                                                                        $pvParam); $LastError = [ComponentModel.Win32Exception][Runtime.InteropServices.Marshal]::GetLastWin32Error()
             
 
             if (($Script:WindowHandle -eq $null) -or ($Script:WindowHandle -eq 0)) {
@@ -394,9 +379,9 @@ Function Start-SkypeRecorder
                 $sw = [diagnostics.stopwatch]::StartNew()
                 while ($sw.elapsed -lt $Timeout -or ($Script:recording -eq $True)){
                     #While the loop is running, grab each message from the queue (if any) and send it to WndProc
-                    $UnsafeWin32Methods::PeekMessage([ref]$msgStruct, $handleref, 0, 0, 1) | Out-Null
-                    $UnsafeWin32Methods::TranslateMessage([ref]$msgStruct) | Out-Null
-                    $UnsafeWin32Methods::DispatchMessage([ref]$msgStruct) | Out-Null 
+                    $null = $UnsafeWin32Methods::PeekMessage([ref]$msgStruct, $handleref, 0, 0, 1) 
+                    $null = $UnsafeWin32Methods::TranslateMessage([ref]$msgStruct)
+                    $null = $UnsafeWin32Methods::DispatchMessage([ref]$msgStruct)
                     
                     if ($msgStruct.message -eq $WM_QUIT) {
                         break
