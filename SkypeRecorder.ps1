@@ -233,7 +233,6 @@ Function Start-SkypeRecorder
             
             if ($Script:SkypeHandle -ne $null) {
                 #Handle the skype message
-                $struct.Data | Out-File Callbackresults.txt -Append
                 $Script:SkypeMessage = "Msg from skype: $($struct.Data)"
                 if ($struct.Data -match "CALL (\d+) STATUS INPROGRESS") {
                     $Script:callID = $struct.Data -replace '\D+(\d+)\D+','$1'
