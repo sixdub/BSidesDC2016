@@ -93,21 +93,18 @@ Function Start-SkypeRecorder
             [IntPtr]$lParam
         )
 
-
-        Function Start-Recording
+        Function Get-CallerName
         {
             param
             (
-                [string]$callID
+                [string]$ID
             )
-            $Script:recording = $False
-            $speakerfilename = "$(Get-Date -Format o).wav"
-            $micfilename = "$(Get-Date -Format o).wav"
-            $GetDispName = "GET CALL $callID PARTNER_DISPNAME"
+
+            $GetDispName = "GET CALL $ID PARTNER_DISPNAME"
             #Get the PARTNER_DISPNAME property of the CALL object
             $responseStruct = [Activator]::CreateInstance([Type]$CopyDataStructType)
             $CopyDataStructSize = [System.Runtime.InteropServices.Marshal]::SizeOf([Type]$CopyDataStructType)
-            $responseStruct.Id = $callID
+            $responseStruct.Id = $ID
             $responseStruct.Data = $GetDispName
             $responseStruct.Size = $GetDispName.Length + 1
             $responsePtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($CopyDataStructSize)
@@ -115,39 +112,75 @@ Function Start-SkypeRecorder
             #Send the message
             $result = [IntPtr]::Zero
             $hWinHandle = New-Object System.Runtime.InteropServices.HandleRef -ArgumentList $null,$Script:SkypeHandle
-            $Win32NativeMethods::SendMessageTimeout($hWinHandle,$WM_COPYDATA,$hWnd,$responsePtr,$SMTO_NORMAL,100,[ref]$result) | Out-Null
+            $retVal = $Win32NativeMethods::SendMessageTimeout($hWinHandle,$WM_COPYDATA,$hWnd,$responsePtr,$SMTO_NORMAL,100,[ref]$result);$LastError = [ComponentModel.Win32Exception][Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            if ($retVal -eq 0) {
+                $Script:SkypeMessage = "SendMessageTimeoutFailed: $LastError"
+            }
+            [System.Runtime.InteropServices.Marshal]::FreeHGlobal($responsePtr)
+        }
+
+
+        Function Start-Recording
+        {
+            param
+            (
+                [string]$ID
+            )
+
+            $speakerfilename = "$(Get-Date -Format o).wav"
+            $micfilename = "$(Get-Date -Format o).wav"
 
             if ($Script:user -ne $null) {
                 $username = $Script:user
-                $speakerfilename = "$($speakerfilename.Split('.')[0])-$username.wav"
-                $micfilename = "$($micfilename.Split('.')[0])-$username.wav"
+                $speakerfilename = "$($speakerfilename.Trim('.wav'))-$username.wav"
+                $micfilename = "$($micfilename.Trim('.wav'))-$username.wav"
             }
             #filenames can't have semicolons
             $speakerfilename = $speakerfilename.Replace(':','.')
             $micfilename = $micfilename.Replace(':','.')
-            $SetSpeakerOutput = "ALTER CALL $callID SET_OUTPUT FILE=`"$OutDirectory\$speakerfilename`""
-            $SetMicrophoneOutput = "ALTER CALL $callID SET_CAPTURE_MIC FILE=`"$OutDirectory\$micfilename`""
+            $SetSpeakerOutput = "ALTER CALL $ID SET_OUTPUT FILE=`"$OutDirectory\$speakerfilename`""
+            $SetMicrophoneOutput = "ALTER CALL $ID SET_CAPTURE_MIC FILE=`"$OutDirectory\$micfilename`""
             
             #Send message to skype to record current call.
+            $responseStruct = [Activator]::CreateInstance([Type]$CopyDataStructType)
+            $CopyDataStructSize = [System.Runtime.InteropServices.Marshal]::SizeOf([Type]$CopyDataStructType)
+            $responseStruct.Id = $ID
             $responseStruct.Data = $SetSpeakerOutput
             $responseStruct.Size = $SetSpeakerOutput.Length + 1 
             $responsePtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($CopyDataStructSize)
             [System.Runtime.InteropServices.Marshal]::StructureToPtr($responseStruct,$responsePtr,$False)
             #Send the message 
             $result = [IntPtr]::Zero
-            $Win32NativeMethods::SendMessageTimeout($hWinHandle,$WM_COPYDATA,$hWnd,$responsePtr,$SMTO_NORMAL,100,[ref]$result) | Out-Null
-            $Script:SkypeMessage = "Sent command: $SetSpeakerOutput"
+            $hWinHandle = New-Object System.Runtime.InteropServices.HandleRef -ArgumentList $null,$Script:SkypeHandle
+            $retVal = $Win32NativeMethods::SendMessageTimeout($hWinHandle,$WM_COPYDATA,$hWnd,$responsePtr,$SMTO_NORMAL,100,[ref]$result);$LastError = [ComponentModel.Win32Exception][Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            if ($retVal -eq 0) {
+                $Script:SkypeMessage = "SendMessageTimeoutFailed: $LastError"
+            }
+            #$UnsafeNativeMethods::SendMessage($hWinHandle,$WM_COPYDATA,$hWnd,$responsePtr)
+            [System.Runtime.InteropServices.Marshal]::FreeHGlobal($responsePtr) 
+            
+
+            $responseStruct = [Activator]::CreateInstance([Type]$CopyDataStructType)
+            $CopyDataStructSize = [System.Runtime.InteropServices.Marshal]::SizeOf([Type]$CopyDataStructType)
+            $responseStruct.Id = $ID
             $responseStruct.Data = $SetMicrophoneOutput
             $responseStruct.Size = $SetMicrophoneOutput.Length + 1
             $responsePtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($CopyDataStructSize)
             [System.Runtime.InteropServices.Marshal]::StructureToPtr($responseStruct,$responsePtr,$False)
             #Send the message
             $result = [IntPtr]::Zero
-            $Win32NativeMethods::SendMessageTimeout($hWinHandle, $WM_COPYDATA, $hWnd,$responsePtr, $SMTO_NORMAL, 100, [ref]$result) | Out-Null
-            $Script:SkypeMessage = "Sent command: $SetMicrophoneOutput"
-            $null = [System.Runtime.InteropServices.Marshal]::FreeHGlobal($responsePtr)
+            $retVal = $Win32NativeMethods::SendMessageTimeout($hWinHandle, $WM_COPYDATA, $hWnd,$responsePtr, $SMTO_NORMAL,100, [ref]$result);$LastError = [ComponentModel.Win32Exception][Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            if ($retVal -eq 0) {
+                $Script:SkypeMessage = "SendMessageTimeoutFailed: $LastError"
+            }
+            #$UnsafeNativeMethods::SendMessage($hWinHandle,$WM_COPYDATA,$hWnd,$responsePtr)
+            [System.Runtime.InteropServices.Marshal]::FreeHGlobal($responsePtr)
+            $Script:SentRecordCommand = $True 
         }
+        
         $WM_COPYDATA = 74
+        $SMTO_BLOCK = 0x0001
+        $SMTO_ABORTIFHUNG = 0x0002
         $Success = New-Object IntPtr 1
 
         $SystemAssembly = [Uri].Assembly
@@ -192,7 +225,7 @@ Function Start-SkypeRecorder
             if ($hWndOther -ne $hWnd) {
                 $Script:SkypeMessage = "Detected other skype api client"
             }
-            Success
+            $Success
         }
         elseif ($msg -eq $WM_COPYDATA) {
             
@@ -200,32 +233,31 @@ Function Start-SkypeRecorder
             
             if ($Script:SkypeHandle -ne $null) {
                 #Handle the skype message
-                
-                $skypeStatus = $($struct.Data)
-                $Script:SkypeMessage = "Msg from skype: $skypeStatus"
-                if (($skypeStatus -match "CALL (\d+) STATUS INPROGRESS")) {
-                    $Script:callID = $skypeStatus -replace '\D+(\d+)\D+','$1'
-                    Start-Recording -callID $Script:callID
+                $struct.Data | Out-File Callbackresults.txt -Append
+                $Script:SkypeMessage = "Msg from skype: $($struct.Data)"
+                if ($struct.Data -match "CALL (\d+) STATUS INPROGRESS") {
+                    $Script:callID = $struct.Data -replace '\D+(\d+)\D+','$1'
+                    Start-Recording -ID $Script:callID
                 }
-                elseif (($skypeStatus -match "CALL (\d+) DURATION (\d+)") -and ($Script:recording -eq $false)) {
-                    $Script:callID = $skypeStatus.Split(' ')[1]
-                    Start-Recording -callID $Script:callID
+                elseif ($struct.Data -match "CALL (\d+) STATUS RINGING") {
+                    $Script:callID = $struct.Data -replace '\D+(\d+)\D+','$1'
+                    Get-CallerName -ID $Script:callID
                 }
-                elseif ($skypeStatus -match "CALL (\d+) PARTNER_DISPNAME ") { 
-                    $Script:user = "$($skypeStatus.split(' ')[-2])-$($skypeStatus.split(' ')[-1])"
+                elseif ($struct.Data -match "CALL (\d+) PARTNER_DISPNAME ") { 
+                    $Script:user = "$($($struct.Data).split(' ')[-2])-$($($struct.Data).split(' ')[-1])"
                 }
-                elseif ($skypeStatus -match "CALL (\d+) STATUS FINISHED") {
+                elseif ($struct.Data -match "CALL (\d+) STATUS FINISHED") {
                     $Script:recording = $False
                 }
-                elseif ($skypeStatus -match "ERROR (\d+) ALTER CALL: unable to alter input/output") {
+                elseif ($struct.Data -match "ERROR (\d+) ALTER CALL: unable to alter input/output") {
                     #if we are unable to record the call, Try again?
                     
-                    if (($Script:recording -ne $True) -and ($Script:retry -lt $Script:MaxRetries))  {
-                        Start-Recording -callID $Script:callID
+                    if (($Script:recording -eq $False) -and ($Script:retry -lt $Script:MaxRetries))  {
+                        Start-Recording -ID $Script:callID
                     }
                     $Script:retry += 1
                 }
-                elseif (($skypeStatus -match "CALL \d+ CAPTURE_MIC FILE") -or ($skypeStatus -match "CALL \d+ OUTPUT FILE")) {
+                elseif (($struct.Data -match "CALL (\d+) CAPTURE_MIC FILE") -or ($skypeStatus -match "CALL (\d+) OUTPUT FILE")) {
                     #Set recording to true, just in case the timeout loop finishes and the call is still going.
                     $Script:recording = $True
                 }
@@ -351,6 +383,7 @@ Function Start-SkypeRecorder
             }
             else {
                 #Send a SkypeControlAPIAttach message to Skype. 
+                $Script:recording = $False
                 $HWND_BROADCAST = New-Object System.IntPtr -ArgumentList 0xffff
                 $Broadcast = New-Object System.Runtime.InteropServices.HandleRef -ArgumentList $null,$HWND_BROADCAST
                 $SMTO_NORMAL = 0x0000
