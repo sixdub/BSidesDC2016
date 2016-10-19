@@ -1,4 +1,13 @@
-﻿function Install-WinPCap 
+﻿##########################################################################
+# Get-WinPCapCapture
+# Author: @sixdub
+# POC code to mimick methods used in adversary tools to collect PCAP
+# License: BSD 3-Clause
+# WinPCap License included in repo with Copyright notices below
+# .NET Assemblies have GNU LESSER GENERAL PUBLIC LICENSE and are linked below
+##########################################################################
+
+function Install-WinPCap 
 {
       <#
         .SYNOPSIS
@@ -9,10 +18,6 @@
         .DESCRIPTION
 
             Requires admin. Drops all required files and creates a service to install the WinPCAP drivers. WinPCAP is licensed and copyrighted as follows:
-            #Copyright (c) 1999 - 2005 NetGroup, Politecnico di Torino (Italy).
-            #Copyright (c) 2005 - 2010 CACE Technologies, Davis (California).
-            #All rights reserved.
-            #For the full winpcap license, please see the repo
 
     #>
     

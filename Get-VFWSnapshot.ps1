@@ -2,6 +2,7 @@
 # Get-VFWSnapshot & Get-VFWCaptureDriver
 # Author: @sixdub
 # POC code to mimick RocketKitten MPK backdoor's webcam capabilities
+# License: BSD 3-Clause
 ##########################################################################
 
 

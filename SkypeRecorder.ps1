@@ -1,3 +1,10 @@
+##########################################################################
+# Start-SkypeRecorder
+# Author: @xorrior
+# POC code to utilize SkypesAPI to record. Mimick T9000 malware
+# License: BSD 3-Clause
+##########################################################################
+
 Function Start-SkypeRecorder
 {
     <#

@@ -1,4 +1,11 @@
-﻿function Rotate-Byte {
+﻿##########################################################################
+# Write-FlashfloodFile
+# Author: @sixdub
+# POC code to mimick APT30 obfuscation
+# License: BSD 3-Clause
+##########################################################################
+
+function Rotate-Byte {
 <#
     .SYNOPSIS
     
